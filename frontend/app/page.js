@@ -1,12 +1,24 @@
 "use client";
 
 import { useState } from "react";
+import TabNavigation from "@/components/TabNavigation";
 import ProductSearch from "@/components/ProductSearch";
 import Cart from "@/components/Cart";
 import QuotationForm from "@/components/QuotationForm";
+import ProductCatalog from "@/components/ProductCatalog";
+import CardGenerationModal from "@/components/CardGenerationModal";
+import GeneratedCardsView from "@/components/GeneratedCardsView";
+import { generateProductCard } from "@/lib/cardGenerator";
 
 export default function Home() {
+    const [activeTab, setActiveTab] = useState("quotation");
     const [cartItems, setCartItems] = useState([]);
+
+    // Product Catalog states
+    const [showCardModal, setShowCardModal] = useState(false);
+    const [selectedProducts, setSelectedProducts] = useState([]);
+    const [generatedCards, setGeneratedCards] = useState([]);
+    const [showCardsView, setShowCardsView] = useState(false);
 
     const handleAddToCart = (product) => {
         setCartItems((prev) => {
@@ -43,48 +55,94 @@ export default function Home() {
         setCartItems((prev) => prev.filter((p) => p.product_id !== productId));
     };
 
+    const handleGenerateCards = (products) => {
+        setSelectedProducts(products);
+        setShowCardModal(true);
+    };
+
+    const handleGenerateAllCards = async (productData) => {
+        setShowCardModal(false);
+
+        // Generate cards
+        const cards = [];
+        for (const product of productData) {
+            const blob = await generateProductCard(
+                product,
+                product.customPrice,
+                product.customDescription
+            );
+            cards.push({ product, blob });
+        }
+
+        setGeneratedCards(cards);
+        setShowCardsView(true);
+    };
+
     return (
         <div className="min-h-screen bg-gray-50/50">
             {/* Header */}
             <header className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-lg">
-                            Q
-                        </div>
-                        <h1 className="text-xl font-bold text-gray-900 tracking-tight">
-                            Quotation<span className="text-blue-600">Builder</span>
-                        </h1>
-                    </div>
-                    <div className="text-sm text-gray-500">
-                        Internal Tool v1.1
-                    </div>
+                    <h1 className="text-xl font-bold text-gray-900">Product Quotation Tool</h1>
                 </div>
             </header>
 
+            {/* Main Content */}
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                    {/* Left Column: Product Search */}
-                    <div className="lg:col-span-7 space-y-6">
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                            <h2 className="text-lg font-semibold text-gray-900 mb-4">Product Catalog</h2>
-                            <ProductSearch onAddToCart={handleAddToCart} cartItems={cartItems} />
+                {/* Tab Navigation */}
+                <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
+
+                {/* Quotation Tool Tab */}
+                {activeTab === "quotation" && (
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        {/* Left: Product Search */}
+                        <div className="lg:col-span-2">
+                            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                                <h2 className="text-lg font-semibold text-gray-900 mb-4">Search Products</h2>
+                                <ProductSearch onAddToCart={handleAddToCart} cartItems={cartItems} />
+                            </div>
+                        </div>
+
+                        {/* Right: Cart + Quotation Form */}
+                        <div className="space-y-6">
+                            <Cart
+                                items={cartItems}
+                                onUpdateQuantity={handleUpdateQuantity}
+                                onRemoveItem={handleRemoveItem}
+                                onUpdatePrice={handleUpdatePrice}
+                            />
+                            <QuotationForm items={cartItems} />
                         </div>
                     </div>
+                )}
 
-                    {/* Right Column: Cart & Form */}
-                    <div className="lg:col-span-5 space-y-6 sticky top-24">
-                        <Cart
-                            items={cartItems}
-                            onUpdateQuantity={handleUpdateQuantity}
-                            onRemoveItem={handleRemoveItem}
-                            onUpdatePrice={handleUpdatePrice}
-                        />
-
-                        <QuotationForm items={cartItems} />
+                {/* Product Catalog Tab */}
+                {activeTab === "catalog" && (
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                        <h2 className="text-lg font-semibold text-gray-900 mb-4">Product Catalog</h2>
+                        <ProductCatalog onGenerateCards={handleGenerateCards} />
                     </div>
-                </div>
+                )}
             </main>
+
+            {/* Modals */}
+            {showCardModal && (
+                <CardGenerationModal
+                    products={selectedProducts}
+                    onGenerate={handleGenerateAllCards}
+                    onClose={() => setShowCardModal(false)}
+                />
+            )}
+
+            {showCardsView && (
+                <GeneratedCardsView
+                    cards={generatedCards}
+                    onClose={() => {
+                        setShowCardsView(false);
+                        setGeneratedCards([]);
+                    }}
+                />
+            )}
         </div>
     );
 }
