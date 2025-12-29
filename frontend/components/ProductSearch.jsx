@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Search, Plus, Loader2 } from "lucide-react";
+import { Search, Plus, Loader2, Filter } from "lucide-react";
 import { fetchAllProducts } from "@/lib/api";
 import { cn, formatImageUrl } from "@/lib/utils";
 
 /**
  * ProductSearch Component
- * Handles searching and displaying products with INSTANT local filtering
+ * Handles searching and displaying products with INSTANT local filtering and category selection
  * 
  * @param {Function} onAddToCart - Callback when product is added
  * @param {Array} cartItems - Current items in cart to check for duplicates
@@ -16,6 +16,8 @@ export default function ProductSearch({ onAddToCart, cartItems = [] }) {
     const [query, setQuery] = useState("");
     const [allProducts, setAllProducts] = useState([]); // Stores the full catalog
     const [filteredProducts, setFilteredProducts] = useState([]); // Stores visible results
+    const [selectedCategory, setSelectedCategory] = useState("All Products");
+    const [categories, setCategories] = useState([]);
 
     // Loading state for initial fetch
     const [isLoadingCatalog, setIsLoadingCatalog] = useState(true);
@@ -30,10 +32,32 @@ export default function ProductSearch({ onAddToCart, cartItems = [] }) {
                 const result = await fetchAllProducts();
                 if (mounted) {
                     if (result.success) {
-                        setAllProducts(result.data || []);
-                        setFilteredProducts([]); // Initially empty until user types? Or show distinct generic recommendations?
-                        // Let's show nothing initially or maybe popular ones if we had that logic.
-                        // For now, empty is consistent with previous behavior.
+                        const products = result.data || [];
+                        setAllProducts(products);
+
+                        // Extract unique categories
+                        const uniqueCategories = [...new Set(
+                            products
+                                .map(p => p.category?.trim())
+                                .filter(cat => cat && cat.length > 0)
+                        )].sort();
+
+                        // Build category list with counts
+                        const categoryList = uniqueCategories.map(cat => ({
+                            name: cat,
+                            count: products.filter(p => p.category?.trim() === cat).length
+                        })).filter(cat => cat.count > 0); // Hide empty categories
+
+                        // Add "All Products" at the beginning
+                        categoryList.unshift({
+                            name: "All Products",
+                            count: products.length
+                        });
+
+                        setCategories(categoryList);
+
+                        // Show first 10 products initially
+                        setFilteredProducts(products.slice(0, 10));
                     } else {
                         setCatalogError("Failed to load product catalog. Please refresh.");
                     }
@@ -50,36 +74,61 @@ export default function ProductSearch({ onAddToCart, cartItems = [] }) {
         return () => { mounted = false; };
     }, []);
 
-    // Instant Filtering Effect
+    // Combined Filtering Effect (Category + Search)
     useEffect(() => {
         const trimmedQuery = query.toLowerCase().trim();
 
+        // Filter by category first
+        let categoryFiltered = allProducts;
+        if (selectedCategory !== "All Products") {
+            categoryFiltered = allProducts.filter(
+                product => product.category?.trim() === selectedCategory
+            );
+        }
+
+        // If no search query, show category results (or first 10 if "All Products" and no search)
         if (!trimmedQuery) {
-            setFilteredProducts([]);
+            if (selectedCategory === "All Products" && query === "") {
+                // Initial state: show first 10
+                setFilteredProducts(categoryFiltered.slice(0, 10));
+            } else {
+                // Category selected but no search: show all in category
+                setFilteredProducts(categoryFiltered);
+            }
             return;
         }
 
-        // Filter valid products locally
-        const results = allProducts.filter(product => {
+        // Apply search filter within category
+        const results = categoryFiltered.filter(product => {
             const matchesName = product.product_name?.toLowerCase().includes(trimmedQuery);
             const matchesId = String(product.product_id).toLowerCase().includes(trimmedQuery);
             const matchesCategory = product.category?.toLowerCase().includes(trimmedQuery);
             return matchesName || matchesId || matchesCategory;
         });
 
-        // Limit results to avoid rendering lag if too many matches (e.g. "a")
+        // Limit results to avoid rendering lag
         setFilteredProducts(results.slice(0, 50));
 
-    }, [query, allProducts]);
+    }, [query, selectedCategory, allProducts]);
 
     const handleManualSearch = (e) => {
         e.preventDefault();
     };
 
+    const handleCategoryChange = (e) => {
+        setSelectedCategory(e.target.value);
+    };
+
+    // Calculate current count for display
+    const currentCount = filteredProducts.length;
+    const totalInCategory = selectedCategory === "All Products"
+        ? allProducts.length
+        : allProducts.filter(p => p.category?.trim() === selectedCategory).length;
+
     return (
         <div className="w-full space-y-6">
-            {/* Search Input */}
-            <form onSubmit={handleManualSearch} className="flex gap-2">
+            {/* Search Input + Category Filter */}
+            <form onSubmit={handleManualSearch} className="flex flex-col sm:flex-row gap-2">
                 <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
                     <input
@@ -97,6 +146,28 @@ export default function ProductSearch({ onAddToCart, cartItems = [] }) {
                         </div>
                     )}
                 </div>
+
+                {/* Category Dropdown */}
+                <div className="relative sm:w-64">
+                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 pointer-events-none" />
+                    <select
+                        value={selectedCategory}
+                        onChange={handleCategoryChange}
+                        disabled={isLoadingCatalog}
+                        className="w-full h-10 pl-10 pr-8 rounded-md border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all appearance-none cursor-pointer"
+                    >
+                        {categories.map((cat) => (
+                            <option key={cat.name} value={cat.name}>
+                                {cat.name} ({cat.count})
+                            </option>
+                        ))}
+                    </select>
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                        <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </div>
+                </div>
             </form>
 
             {/* Results Grid */}
@@ -107,9 +178,22 @@ export default function ProductSearch({ onAddToCart, cartItems = [] }) {
                     </div>
                 )}
 
-                {!isLoadingCatalog && query && filteredProducts.length === 0 && !catalogError && (
+                {/* Product Count Display */}
+                {!isLoadingCatalog && !catalogError && filteredProducts.length > 0 && (
+                    <div className="text-sm text-gray-600">
+                        Showing <span className="font-semibold text-gray-900">{currentCount}</span>
+                        {currentCount < totalInCategory && ` of ${totalInCategory}`} products
+                        {selectedCategory !== "All Products" && (
+                            <span> in <span className="font-semibold text-gray-900">{selectedCategory}</span></span>
+                        )}
+                    </div>
+                )}
+
+                {!isLoadingCatalog && !catalogError && filteredProducts.length === 0 && (query || selectedCategory !== "All Products") && (
                     <div className="text-center py-10 text-gray-500 bg-gray-50 rounded-lg border border-dashed border-gray-200">
-                        No products found matching "{query}"
+                        No products found
+                        {query && ` matching "${query}"`}
+                        {selectedCategory !== "All Products" && ` in ${selectedCategory}`}
                     </div>
                 )}
 
