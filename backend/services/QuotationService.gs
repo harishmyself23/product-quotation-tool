@@ -23,6 +23,13 @@ function generateQuotation(quotationData) {
     // Insert products
     insertProductsIntoQuotation(sheet, quotationData.selected_products);
     
+    // ✅ ADDITION: Insert Terms & Conditions after products
+    insertTermsAndConditions(
+      sheet,
+      QUOTATION_CELLS.PRODUCTS_START_ROW,
+      quotationData.selected_products.length
+    );
+    
     // Save changes
     SpreadsheetApp.flush();
     
@@ -144,6 +151,31 @@ function insertProductsIntoQuotation(sheet, products) {
  * @param {string} fileId - Spreadsheet file ID
  * @return {string} Download URL
  */
+function insertTermsAndConditions(sheet, productsStartRow, productCount) {
+  const lastProductRow = productsStartRow + productCount - 1;
+  let row = lastProductRow + 2; // leave one empty row
+
+  const terms = [
+    "TERMS AND CONDITIONS",
+    "GST EXTRA",
+    "Payment Terms",
+    "Transport",
+    "DELIVERY WITHIN 6-7 DAYS",
+    "Quotation valid for 30 Days",
+    "FOR HI TECH SALES AND SERVICES",
+    "",
+    "S RAMANATHAN"
+  ];
+
+  terms.forEach((text, index) => {
+    const cell = sheet.getRange(row + index, 2); // Column B
+    cell.setValue(text);
+
+    if (text === "TERMS AND CONDITIONS" || text === "S RAMANATHAN") {
+      cell.setFontWeight("bold");
+    }
+  });
+} 
 function generateExcelDownloadUrl(fileId) {
   // Export as Excel format
   return `https://docs.google.com/spreadsheets/d/${fileId}/export?format=xlsx`;

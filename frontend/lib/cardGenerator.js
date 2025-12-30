@@ -1,153 +1,205 @@
 /**
- * Card Generator Utility - Exact Reference Design Match
- * Generates product cards matching the uploaded reference image (400x600px)
+ * High-Fidelity Card Generator (2x Retina Quality)
+ * Matches exact visual depth with high-DPI rendering.
  */
 
 export async function generateProductCard(product, customPrice = "", customDescription = "") {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
 
+    // Logical size (design size)
     const width = 400;
     const height = 600;
-    canvas.width = width;
-    canvas.height = height;
 
-    const brandBlue = '#2B7FED';
-    const lightBlueBg = '#E8F1FC';
-    const darkText = '#1A1A1A';
-    const grayText = '#6B7280';
+    // 🔥 SCALE FACTOR (2x for high quality)
+    const scale = 2;
 
-    // White card background
-    ctx.fillStyle = '#FFFFFF';
-    roundRect(ctx, 0, 0, width, height, 24, true);
+    // Physical canvas size
+    canvas.width = width * scale;
+    canvas.height = height * scale;
 
-    // Top section: Logo + Company Name
-    const headerY = 30;
+    // Logical canvas size
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+
+    // Scale drawing operations
+    ctx.scale(scale, scale);
+
+    // Design System Colors
+    const colors = {
+        background: '#F3F4F6',
+        cardBg: '#FFFFFF',
+        brandBlue: '#2563EB',
+        textDark: '#111827',
+        textGray: '#6B7280'
+    };
+
+    // 1. Canvas background
+    ctx.fillStyle = colors.background;
+    ctx.fillRect(0, 0, width, height);
+
+    // 2. Floating card
+    const cardPadding = 25;
+    const cardW = width - cardPadding * 2;
+    const cardH = height - cardPadding * 2;
+    const cardX = cardPadding;
+    const cardY = cardPadding;
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.15)';
+    ctx.shadowBlur = 40;
+    ctx.shadowOffsetY = 20;
+    ctx.fillStyle = colors.cardBg;
+    roundRect(ctx, cardX, cardY, cardW, cardH, 32, true);
+    ctx.restore();
+
+    const contentLeft = cardX + 24;
+    const contentW = cardW - 48;
+    let cursorY = cardY + 40;
+
+    // 3. Header
+    const logoSize = 32;
     try {
         const logo = await loadImage('/Logo.png');
-        ctx.drawImage(logo, 30, headerY, 40, 40);
-    } catch (e) { }
-    ctx.fillStyle = darkText;
-    ctx.font = 'bold 16px Inter, -apple-system, sans-serif';
+        ctx.drawImage(logo, contentLeft, cursorY - 5, logoSize, logoSize);
+    } catch {
+        ctx.fillStyle = colors.brandBlue;
+        roundRect(ctx, contentLeft, cursorY - 5, logoSize, logoSize, 8, true);
+    }
+
+    ctx.fillStyle = colors.textDark;
+    ctx.font = 'bold 15px Inter, -apple-system, sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText('HI TECH SALES AND SERVICES', 85, headerY + 25);
+    ctx.fillText('HI TECH SALES AND SERVICES', contentLeft + 45, cursorY + 16);
 
-    // Separator line (blue gradient)
-    const lineY = headerY + 55;
-    const lineGradient = ctx.createLinearGradient(0, lineY, width, lineY);
-    lineGradient.addColorStop(0, '#2B7FED');
-    lineGradient.addColorStop(1, '#60A5FA');
-    ctx.fillStyle = lineGradient;
-    ctx.fillRect(30, lineY, width - 60, 3);
+    // Separator
+    cursorY += 45;
+    const sepGrad = ctx.createLinearGradient(contentLeft, cursorY, contentLeft + contentW, cursorY);
+    sepGrad.addColorStop(0, '#3B82F6');
+    sepGrad.addColorStop(1, '#93C5FD');
+    ctx.fillStyle = sepGrad;
+    roundRect(ctx, contentLeft, cursorY, contentW, 3, 1.5, true);
 
-    // Image section background
-    const imgSectionY = lineY + 20;
-    const imgSectionHeight = 280;
-    ctx.fillStyle = lightBlueBg;
-    roundRect(ctx, 25, imgSectionY, width - 50, imgSectionHeight, 20, true);
+    // 4. Image tray
+    cursorY += 25;
+    const trayH = 260;
+
+    ctx.save();
+    const trayGrad = ctx.createLinearGradient(contentLeft, cursorY, contentLeft, cursorY + trayH);
+    trayGrad.addColorStop(0, '#EFF6FF');
+    trayGrad.addColorStop(1, '#FFFFFF');
+    ctx.fillStyle = trayGrad;
+    roundRect(ctx, contentLeft, cursorY, contentW, trayH, 24, true);
+
+    ctx.strokeStyle = 'rgba(59,130,246,0.1)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.clip();
+    ctx.shadowColor = 'rgba(0,0,0,0.05)';
+    ctx.shadowBlur = 20;
+    ctx.shadowOffsetY = 10;
+    ctx.strokeRect(contentLeft - 10, cursorY - 10, contentW + 20, trayH + 20);
+    ctx.restore();
 
     // Product image
-    const imgSize = 240;
-    const imgX = (width - imgSize) / 2;
-    const imgY = imgSectionY + 20;
-
     if (product.image_url) {
         try {
-            const productImg = await loadImage(product.image_url);
-            ctx.save();
-            roundRect(ctx, imgX, imgY, imgSize, imgSize, 16, false);
-            ctx.clip();
-            const scale = Math.max(imgSize / productImg.width, imgSize / productImg.height);
-            const scaledWidth = productImg.width * scale;
-            const scaledHeight = productImg.height * scale;
-            const offsetX = imgX + (imgSize - scaledWidth) / 2;
-            const offsetY = imgY + (imgSize - scaledHeight) / 2;
-            ctx.drawImage(productImg, offsetX, offsetY, scaledWidth, scaledHeight);
-            ctx.restore();
-        } catch (e) {
-            drawPlaceholder(ctx, imgX, imgY, imgSize, imgSize, grayText, width);
+            const pad = 20;
+            const availW = contentW - pad * 2;
+            const availH = trayH - pad * 2;
+            const img = await loadImage(product.image_url);
+
+            const scaleImg = Math.min(availW / img.width, availH / img.height);
+            const drawW = img.width * scaleImg;
+            const drawH = img.height * scaleImg;
+            const drawX = contentLeft + (contentW - drawW) / 2;
+            const drawY = cursorY + (trayH - drawH) / 2;
+
+            ctx.drawImage(img, drawX, drawY, drawW, drawH);
+        } catch {
+            ctx.fillStyle = '#E5E7EB';
+            ctx.font = '14px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('No Image', contentLeft + contentW / 2, cursorY + trayH / 2);
         }
-    } else {
-        drawPlaceholder(ctx, imgX, imgY, imgSize, imgSize, grayText, width);
     }
 
-    // Product details
-    let currentY = imgSectionY + imgSectionHeight + 25;
+    // Typography
+    cursorY += trayH + 25;
 
-    // Product name
-    ctx.fillStyle = darkText;
-    ctx.font = 'bold 20px Inter, -apple-system, sans-serif';
-    ctx.textAlign = 'left';
-    const nameLines = wrapText(ctx, product.product_name.toUpperCase(), width - 60, 20);
-    nameLines.slice(0, 2).forEach((line, i) => ctx.fillText(line, 30, currentY + (i * 26)));
-    currentY += nameLines.slice(0, 2).length * 26 + 12;
+    ctx.fillStyle = '#000';
+    ctx.font = '800 22px Inter, sans-serif';
+    const title = (product.product_name || 'PRODUCT NAME').toUpperCase();
+    const titleLines = wrapText(ctx, title, contentW);
+    titleLines.slice(0, 2).forEach((l, i) => {
+        ctx.fillText(l, contentLeft, cursorY + i * 26);
+    });
+    cursorY += titleLines.length * 26 + 10;
 
-    // Category badge
     if (product.category) {
-        ctx.fillStyle = brandBlue;
-        const categoryText = product.category;
-        ctx.font = '600 13px Inter, sans-serif';
-        const categoryWidth = ctx.measureText(categoryText).width + 24;
-        roundRect(ctx, 30, currentY, categoryWidth, 28, 14, true);
-        ctx.fillStyle = '#FFFFFF';
-        ctx.textAlign = 'left';
-        ctx.fillText(categoryText, 42, currentY + 18);
-        currentY += 40;
+        ctx.font = '600 12px Inter, sans-serif';
+        const pad = 12;
+        const bw = ctx.measureText(product.category).width + pad * 2;
+        ctx.fillStyle = '#3B82F6';
+        roundRect(ctx, contentLeft, cursorY - 10, bw, 24, 12, true);
+        ctx.fillStyle = '#FFF';
+        ctx.fillText(product.category, contentLeft + pad, cursorY + 6);
+        cursorY += 30;
     }
 
-    // Description
-    const description = customDescription || product.description || '';
-    if (description) {
-        ctx.fillStyle = grayText;
+    const desc = customDescription || product.description || '';
+    if (desc) {
+        ctx.fillStyle = colors.textGray;
         ctx.font = '14px Inter, sans-serif';
-        ctx.textAlign = 'left';
-        const descLines = wrapText(ctx, description, width - 60, 14);
-        descLines.slice(0, 2).forEach((line, i) => ctx.fillText(line, 30, currentY + (i * 20)));
-        currentY += Math.min(descLines.length, 2) * 20 + 20;
+        const lines = wrapText(ctx, desc, contentW);
+        lines.slice(0, 2).forEach((l, i) => {
+            ctx.fillText(l, contentLeft, cursorY + i * 20);
+        });
     }
 
-    // Price button
+    // Price Button
     if (customPrice) {
-        const buttonY = height - 80;
-        const buttonHeight = 60;
-        const btnGradient = ctx.createLinearGradient(0, buttonY, 0, buttonY + buttonHeight);
-        btnGradient.addColorStop(0, '#3B82F6');
-        btnGradient.addColorStop(1, '#2563EB');
-        ctx.fillStyle = btnGradient;
-        roundRect(ctx, 30, buttonY, width - 60, buttonHeight, 16, true);
+        const btnH = 60;
+        const btnY = cardY + cardH - btnH - 24;
 
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = 'bold 32px Inter, -apple-system, sans-serif';
+        ctx.save();
+        ctx.shadowColor = 'rgba(37,99,235,0.3)';
+        ctx.shadowBlur = 15;
+        ctx.shadowOffsetY = 8;
+
+        const btnGrad = ctx.createLinearGradient(contentLeft, btnY, contentLeft, btnY + btnH);
+        btnGrad.addColorStop(0, '#60A5FA');
+        btnGrad.addColorStop(1, '#2563EB');
+        ctx.fillStyle = btnGrad;
+        roundRect(ctx, contentLeft, btnY, contentW, btnH, 16, true);
+        ctx.restore();
+
+        ctx.fillStyle = '#FFF';
+        ctx.font = 'bold 30px Inter, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(`₹${customPrice}`, width / 2, buttonY + 40);
+        ctx.fillText(`₹${customPrice}`, contentLeft + contentW / 2, btnY + 40);
     }
 
-    return new Promise((resolve) => {
-        canvas.toBlob((blob) => resolve(blob), 'image/png', 0.95);
+    return new Promise(resolve => {
+        canvas.toBlob(blob => resolve(blob), 'image/png', 1.0);
     });
 }
 
-function drawPlaceholder(ctx, x, y, size, color, canvasWidth) {
-    ctx.fillStyle = '#D1D5DB';
-    roundRect(ctx, x, y, size, size, 16, true);
-    ctx.fillStyle = color;
-    ctx.font = '14px Inter, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('No Image', canvasWidth / 2, y + size / 2);
-}
+/* ---------------- Utilities ---------------- */
 
-function roundRect(ctx, x, y, width, height, radius, fill = false, stroke = false) {
-    if (typeof radius === 'number') radius = [radius, radius, radius, radius];
+function roundRect(ctx, x, y, w, h, r, fill = false, stroke = false) {
+    if (typeof r === 'number') r = [r, r, r, r];
     ctx.beginPath();
-    ctx.moveTo(x + radius[0], y);
-    ctx.lineTo(x + width - radius[1], y);
-    ctx.quadraticCurveTo(x + width, y, x + width, y + radius[1]);
-    ctx.lineTo(x + width, y + height - radius[2]);
-    ctx.quadraticCurveTo(x + width, y + height, x + width - radius[2], y + height);
-    ctx.lineTo(x + radius[3], y + height);
-    ctx.quadraticCurveTo(x, y + height, x, y + height - radius[3]);
-    ctx.lineTo(x, y + radius[0]);
-    ctx.quadraticCurveTo(x, y, x + radius[0], y);
+    ctx.moveTo(x + r[0], y);
+    ctx.lineTo(x + w - r[1], y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r[1]);
+    ctx.lineTo(x + w, y + h - r[2]);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r[2], y + h);
+    ctx.lineTo(x + r[3], y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r[3]);
+    ctx.lineTo(x, y + r[0]);
+    ctx.quadraticCurveTo(x, y, x + r[0], y);
     ctx.closePath();
     if (fill) ctx.fill();
     if (stroke) ctx.stroke();
@@ -163,18 +215,23 @@ function loadImage(src) {
     });
 }
 
-function wrapText(ctx, text, maxWidth, fontSize) {
+function wrapText(ctx, text, maxWidth) {
     const words = text.split(' ');
     const lines = [];
-    let currentLine = words[0];
+    let line = words[0];
     for (let i = 1; i < words.length; i++) {
-        const word = words[i];
-        if (ctx.measureText(currentLine + " " + word).width < maxWidth) currentLine += " " + word;
-        else { lines.push(currentLine); currentLine = word; }
+        const test = line + ' ' + words[i];
+        if (ctx.measureText(test).width < maxWidth) line = test;
+        else {
+            lines.push(line);
+            line = words[i];
+        }
     }
-    lines.push(currentLine);
+    lines.push(line);
     return lines;
 }
+
+/* ---------- EXPORT HELPERS ---------- */
 
 export function downloadImage(blob, filename) {
     const url = URL.createObjectURL(blob);
@@ -190,8 +247,16 @@ export function downloadImage(blob, filename) {
 export async function shareToWhatsApp(blob, productName) {
     if (navigator.share && navigator.canShare) {
         const file = new File([blob], `${productName}.png`, { type: 'image/png' });
-        try { await navigator.share({ files: [file], title: productName }); return true; }
-        catch (err) { console.error(err); return false; }
+        try {
+            await navigator.share({
+                files: [file],
+                title: productName
+            });
+            return true;
+        } catch (err) {
+            console.error('Share failed', err);
+            return false;
+        }
     }
     return false;
 }
