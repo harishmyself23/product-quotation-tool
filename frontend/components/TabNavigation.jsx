@@ -12,7 +12,9 @@ import { cn } from "@/lib/utils";
 export default function TabNavigation({ activeTab, onTabChange }) {
     const tabs = [
         { id: "quotation", label: "Quotation Tool" },
-        { id: "catalog", label: "Product Catalog" }
+        { id: "catalog", label: "Product Catalog" },
+        { id: "add-product", label: "Add Product" },
+        { id: "bulk-upload", label: "Bulk Upload" }
     ];
 
     return (

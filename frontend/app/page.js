@@ -8,17 +8,22 @@ import QuotationForm from "@/components/QuotationForm";
 import ProductCatalog from "@/components/ProductCatalog";
 import CardGenerationModal from "@/components/CardGenerationModal";
 import GeneratedCardsView from "@/components/GeneratedCardsView";
+import AddProductForm from "@/components/AddProductForm";
+import BulkUploadForm from "@/components/BulkUploadForm";
+import { Loader2, Sparkles } from "lucide-react";
 import { generateProductCard } from "@/lib/cardGenerator";
 
 export default function Home() {
     const [activeTab, setActiveTab] = useState("quotation");
     const [cartItems, setCartItems] = useState([]);
+    const [refreshKey, setRefreshKey] = useState(0); // Trigger reload after adding product
 
     // Product Catalog states
     const [showCardModal, setShowCardModal] = useState(false);
     const [selectedProducts, setSelectedProducts] = useState([]);
     const [generatedCards, setGeneratedCards] = useState([]);
     const [showCardsView, setShowCardsView] = useState(false);
+    const [isGeneratingCards, setIsGeneratingCards] = useState(false);
 
     const handleAddToCart = (product) => {
         setCartItems((prev) => {
@@ -62,20 +67,30 @@ export default function Home() {
 
     const handleGenerateAllCards = async (productData) => {
         setShowCardModal(false);
+        setIsGeneratingCards(true);
 
-        // Generate cards
-        const cards = [];
-        for (const product of productData) {
-            const blob = await generateProductCard(
-                product,
-                product.customPrice,
-                product.customDescription
-            );
-            cards.push({ product, blob });
+        // Allow some time for the loading UI to mount
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        try {
+            // Generate cards
+            const cards = [];
+            for (const product of productData) {
+                const blob = await generateProductCard(
+                    product,
+                    product.customPrice,
+                    product.customDescription
+                );
+                cards.push({ product, blob });
+            }
+
+            setGeneratedCards(cards);
+            setShowCardsView(true);
+        } catch (error) {
+            console.error("Card generation failed:", error);
+        } finally {
+            setIsGeneratingCards(false);
         }
-
-        setGeneratedCards(cards);
-        setShowCardsView(true);
     };
 
     return (
@@ -99,7 +114,7 @@ export default function Home() {
                         <div className="lg:col-span-2">
                             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                                 <h2 className="text-lg font-semibold text-gray-900 mb-4">Search Products</h2>
-                                <ProductSearch onAddToCart={handleAddToCart} cartItems={cartItems} />
+                                <ProductSearch key={`search-${refreshKey}`} onAddToCart={handleAddToCart} cartItems={cartItems} />
                             </div>
                         </div>
 
@@ -120,7 +135,23 @@ export default function Home() {
                 {activeTab === "catalog" && (
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                         <h2 className="text-lg font-semibold text-gray-900 mb-4">Product Catalog</h2>
-                        <ProductCatalog onGenerateCards={handleGenerateCards} />
+                        <ProductCatalog key={`catalog-${refreshKey}`} onGenerateCards={handleGenerateCards} />
+                    </div>
+                )}
+
+                {/* Add Product Tab */}
+                {activeTab === "add-product" && (
+                    <div className="animate-in fade-in duration-300">
+                        <AddProductForm
+                            onProductAdded={() => setRefreshKey(k => k + 1)}
+                        />
+                    </div>
+                )}
+
+                {/* Bulk Upload Tab */}
+                {activeTab === "bulk-upload" && (
+                    <div className="animate-in fade-in duration-300">
+                        <BulkUploadForm onProductAdded={() => setRefreshKey(k => k + 1)} />
                     </div>
                 )}
             </main>
@@ -142,6 +173,29 @@ export default function Home() {
                         setGeneratedCards([]);
                     }}
                 />
+            )}
+
+            {/* Premium Generation Loading Overlay */}
+            {isGeneratingCards && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-white/80 backdrop-blur-md animate-in fade-in duration-300">
+                    <div className="text-center space-y-4">
+                        <div className="relative inline-block">
+                            <div className="absolute inset-0 rounded-full bg-blue-100 animate-ping opacity-25"></div>
+                            <div className="relative p-6 bg-blue-600 rounded-3xl shadow-2xl shadow-blue-200">
+                                <Sparkles className="w-12 h-12 text-white animate-pulse" />
+                            </div>
+                        </div>
+                        <div className="space-y-1">
+                            <h2 className="text-2xl font-bold text-gray-900 flex items-center justify-center gap-2">
+                                <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                                Generating Cards
+                            </h2>
+                            <p className="text-gray-500 font-medium tracking-tight">
+                                Processing {selectedProducts.length} premium product cards...
+                            </p>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

@@ -75,3 +75,70 @@ export const generateQuotation = async (quotationData) => {
         return { success: false, error: 'Network request failed' };
     }
 };
+
+/**
+ * Checks if a product name is unique (server-side)
+ * @param {string} name - The product name
+ * @returns {Promise<Object>} Response object
+ */
+export const checkNameUniqueness = async (name) => {
+    if (!API_URL) return { success: false, error: 'API configuration missing' };
+    try {
+        const response = await fetch(`${API_URL}?action=checkNameUniqueness&name=${encodeURIComponent(name)}`);
+        return await response.json();
+    } catch (error) {
+        return { success: false, error: 'Network error' };
+    }
+};
+
+/**
+ * Adds a new product to the catalog
+ * @param {Object} productData - { name, category, image_url }
+ * @returns {Promise<Object>} Response object
+ */
+export const addProduct = async (productData) => {
+    if (!API_URL) return { success: false, error: 'API configuration missing' };
+    try {
+        const response = await fetch(`${API_URL}?action=addProduct`, {
+            method: 'POST',
+            body: JSON.stringify(productData)
+        });
+        return await response.json();
+    } catch (error) {
+        return { success: false, error: 'Network error' };
+    }
+};
+
+/**
+ * Uploads an image to ImgBB
+ * @param {Blob} imageBlob - The image file blob
+ * @param {string} filename - The desired filename
+ * @returns {Promise<Object>} ImgBB response
+ */
+export const uploadToImgBB = async (imageBlob, filename) => {
+    const apiKey = process.env.NEXT_PUBLIC_IMGBB_API_KEY;
+    if (!apiKey) {
+        return { success: false, error: 'ImgBB API Key missing in .env.local' };
+    }
+
+    const formData = new FormData();
+    formData.append('image', imageBlob); // ImgBB doesn't strictly use the filename from formdata for URL but good to have
+    formData.append('name', filename.replace(/\.[^/.]+$/, "")); // Set the name property for ImgBB
+
+    try {
+        const response = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+        if (data.success) {
+            return { success: true, url: data.data.url };
+        } else {
+            return { success: false, error: data.error.message };
+        }
+    } catch (error) {
+        console.error('ImgBB upload error:', error);
+        return { success: false, error: 'ImgBB upload failed' };
+    }
+};
